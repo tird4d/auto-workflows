@@ -1,3 +1,5 @@
+name: auto-workflows
+
 services:
   postgres:
     image: postgres:16
@@ -38,4 +40,8 @@ services:
 
 volumes:
   postgres_data:
+    name: 01-support-ticket-classifier_postgres_data
+    external: true
   n8n_data:
+    name: 01-support-ticket-classifier_n8n_data
+    external: true
