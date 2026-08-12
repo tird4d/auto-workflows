@@ -1,0 +1,248 @@
+{
+  "name": "01 - Support Ticket Classifier",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Setup checklist after import\n1. Create credential **OpenAI API** (or swap the Chat Model node for Azure OpenAI) — used by 'OpenAI Chat Model' and 'OpenAI - Draft Auto Reply'.\n2. Create credential **Postgres** — host `postgres`, db/user/password from your `.env` — used by 'Postgres - Insert Ticket'.\n3. Make sure `SLACK_WEBHOOK_URL` is set in `.env` (restart the n8n container after editing), or swap the HTTP Request nodes for the native Slack node.\n4. Run `sql/init.sql` once against Postgres to create the `tickets` table.\n5. Activate the workflow, then test:\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"CUST-1001\",\"message\":\"Our main office has had zero internet connectivity since 9am, this is urgent.\"}'\n```",
+        "height": 420,
+        "width": 420
+      },
+      "id": "sticky-instructions",
+      "name": "Sticky Note - Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, -80]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "support-ticket",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - New Ticket",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-60, 380],
+      "webhookId": "support-ticket-demo"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a customer support ticket classification assistant.\n\nClassify the customer's message into exactly one category: network_outage, database_issue, billing_invoice, or other.\nDetermine a priority: low, medium, high, or critical.\nWrite a one-sentence summary of the issue.\nProvide a confidence score from 0 to 1 for your classification.\nUse this customerId if the message does not clearly restate it: {{ $json.body.customerId }}"
+        }
+      },
+      "id": "ai-agent-classify",
+      "name": "AI Agent - Classify & Extract",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [220, 380]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "id": "lm-openai",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [140, 620],
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"network_outage\", \"database_issue\", \"billing_invoice\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"critical\"] },\n    \"customerId\": { \"type\": \"string\" },\n    \"summary\": { \"type\": \"string\" },\n    \"confidence\": { \"type\": \"number\" }\n  },\n  \"required\": [\"category\", \"priority\", \"customerId\", \"summary\", \"confidence\"]\n}"
+      },
+      "id": "output-parser",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [360, 620]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": { "__rl": true, "value": "public", "mode": "list" },
+        "table": { "__rl": true, "value": "tickets", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Webhook - New Ticket').item.json.body.customerId || $json.output.customerId }}",
+            "category": "={{ $json.output.category }}",
+            "priority": "={{ $json.output.priority }}",
+            "summary": "={{ $json.output.summary }}",
+            "confidence": "={{ $json.output.confidence }}",
+            "raw_message": "={{ $('Webhook - New Ticket').item.json.body.message }}",
+            "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "postgres-insert",
+      "name": "Postgres - Insert Ticket",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [560, 380],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "confidence-check",
+              "leftValue": "={{ $('AI Agent - Classify & Extract').item.json.output.confidence }}",
+              "rightValue": 0.6,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-confidence",
+      "name": "IF - Confidence >= 0.6",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [800, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('AI Agent - Classify & Extract').item.json.output.priority.toUpperCase() + \"] \" + $('AI Agent - Classify & Extract').item.json.output.category + \" — Customer \" + $('AI Agent - Classify & Extract').item.json.output.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary } }}",
+        "options": {}
+      },
+      "id": "slack-notify",
+      "name": "Notify Slack - Standard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 240]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": { "__rl": true, "value": "gpt-4o-mini", "mode": "list" },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You write short, professional, empathetic customer support acknowledgment messages."
+            },
+            {
+              "role": "user",
+              "content": "={{ \"Write a brief professional acknowledgment reply to a customer about their support ticket. Category: \" + $('AI Agent - Classify & Extract').item.json.output.category + \". Priority: \" + $('AI Agent - Classify & Extract').item.json.output.priority + \". Summary: \" + $('AI Agent - Classify & Extract').item.json.output.summary }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "openai-auto-reply",
+      "name": "OpenAI - Draft Auto Reply",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1260, 240],
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"classified\", \"category\": $('AI Agent - Classify & Extract').item.json.output.category, \"priority\": $('AI Agent - Classify & Extract').item.json.output.priority, \"reply\": $json.message.content } }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond - Classified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1480, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('AI Agent - Classify & Extract').item.json.output.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary + \" (confidence \" + $('AI Agent - Classify & Extract').item.json.output.confidence + \")\" } }}",
+        "options": {}
+      },
+      "id": "slack-escalate",
+      "name": "Notify Slack - Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1040, 520]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"pending_review\", \"message\": \"Thanks for reaching out — your request needs a closer look from our team and we'll follow up shortly.\" } }}",
+        "options": {}
+      },
+      "id": "respond-review",
+      "name": "Respond - Needs Review",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1260, 520]
+    }
+  ],
+  "connections": {
+    "Webhook - New Ticket": {
+      "main": [[{ "node": "AI Agent - Classify & Extract", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent - Classify & Extract", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [[{ "node": "AI Agent - Classify & Extract", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "AI Agent - Classify & Extract": {
+      "main": [[{ "node": "Postgres - Insert Ticket", "type": "main", "index": 0 }]]
+    },
+    "Postgres - Insert Ticket": {
+      "main": [[{ "node": "IF - Confidence >= 0.6", "type": "main", "index": 0 }]]
+    },
+    "IF - Confidence >= 0.6": {
+      "main": [
+        [{ "node": "Notify Slack - Standard", "type": "main", "index": 0 }],
+        [{ "node": "Notify Slack - Escalation", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notify Slack - Standard": {
+      "main": [[{ "node": "OpenAI - Draft Auto Reply", "type": "main", "index": 0 }]]
+    },
+    "OpenAI - Draft Auto Reply": {
+      "main": [[{ "node": "Respond - Classified", "type": "main", "index": 0 }]]
+    },
+    "Notify Slack - Escalation": {
+      "main": [[{ "node": "Respond - Needs Review", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
