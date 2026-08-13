@@ -106,10 +106,7 @@
             "summary": "={{ $json.output.summary }}",
             "confidence": "={{ $json.output.confidence }}",
             "raw_message": "={{ $('Normalize Ticket Input').first().json.message }}",
-            "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}",
-            "cost_source": "={{ $json.costSource }}",
-            "estimated_tokens": "={{ $json.estimatedTokens }}",
-            "estimated_cost_usd": "={{ $json.estimatedCostUsd }}"
+            "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}"
           },
           "matchingColumns": [
             "id"
@@ -189,33 +186,6 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "cost_source",
-              "displayName": "cost_source",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "estimated_tokens",
-              "displayName": "estimated_tokens",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "estimated_cost_usd",
-              "displayName": "estimated_cost_usd",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true
-            },
-            {
               "id": "created_at",
               "displayName": "created_at",
               "required": false,
@@ -285,7 +255,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('Classification Result').first().json.output.priority.toUpperCase() + \"] \" + $('Classification Result').first().json.output.category + \" — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" | \" + ($('Classification Result').first().json.costSource === 'cache' ? \"⚡ served from semantic cache – $0 LLM cost\" : \"🧠 fresh LLM classification – ~$\" + $('Classification Result').first().json.estimatedCostUsd.toFixed(5) + \" (\" + $('Classification Result').first().json.estimatedTokens + \" tokens)\") } }}",
+        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('Classification Result').first().json.output.priority.toUpperCase() + \"] \" + $('Classification Result').first().json.output.category + \" — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary } }}",
         "options": {}
       },
       "id": "69f7def0-3b84-4fbc-bbea-a003d8d5b87b",
@@ -318,7 +288,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" (confidence \" + $('Classification Result').first().json.output.confidence + \")\" + \" | \" + ($('Classification Result').first().json.costSource === 'cache' ? \"⚡ served from semantic cache – $0 LLM cost\" : \"🧠 fresh LLM classification – ~$\" + $('Classification Result').first().json.estimatedCostUsd.toFixed(5) + \" (\" + $('Classification Result').first().json.estimatedTokens + \" tokens)\") } }}",
+        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" (confidence \" + $('Classification Result').first().json.output.confidence + \")\" } }}",
         "options": {}
       },
       "id": "c6cffae4-a1f7-44eb-bce0-e93195926457",
@@ -581,7 +551,7 @@
           "mode": "list",
           "cachedResultName": "ticket-cache"
         },
-        "prompt": "={{ $('Normalize Ticket Input').first().json.message }}",
+        "prompt": "={{ $json.message }}",
         "topK": 1,
         "options": {}
       },
@@ -629,24 +599,6 @@
               "name": "output",
               "value": "={{ $json.output }}",
               "type": "object"
-            },
-            {
-              "id": "a1b2c3d4-1111-4a11-8e11-111111111111",
-              "name": "costSource",
-              "value": "={{ $json.costSource }}",
-              "type": "string"
-            },
-            {
-              "id": "a1b2c3d4-2222-4a22-8e22-222222222222",
-              "name": "estimatedTokens",
-              "value": "={{ $json.estimatedTokens }}",
-              "type": "number"
-            },
-            {
-              "id": "a1b2c3d4-3333-4a33-8e33-333333333333",
-              "name": "estimatedCostUsd",
-              "value": "={{ $json.estimatedCostUsd }}",
-              "type": "number"
             }
           ]
         },
@@ -670,24 +622,6 @@
               "name": "output",
               "value": "={{ { category: $json.document.metadata.category, priority: $json.document.metadata.priority, summary: $json.document.metadata.summary, confidence: $json.document.metadata.confidence } }}",
               "type": "object"
-            },
-            {
-              "id": "5e12d600-1111-4b74-aa34-111111111111",
-              "name": "costSource",
-              "value": "cache",
-              "type": "string"
-            },
-            {
-              "id": "5e12d600-2222-4b74-aa34-222222222222",
-              "name": "estimatedTokens",
-              "value": 0,
-              "type": "number"
-            },
-            {
-              "id": "5e12d600-3333-4b74-aa34-333333333333",
-              "name": "estimatedCostUsd",
-              "value": 0,
-              "type": "number"
             }
           ]
         },
@@ -701,47 +635,6 @@
       ],
       "id": "c5940835-34f3-473a-924e-38dc5dfe51c5",
       "name": "Use Cached Classification"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "b1c2d3e4-1111-4b11-9e11-111111111111",
-              "name": "output",
-              "value": "={{ $json.output }}",
-              "type": "object"
-            },
-            {
-              "id": "b1c2d3e4-2222-4b22-9e22-222222222222",
-              "name": "costSource",
-              "value": "llm",
-              "type": "string"
-            },
-            {
-              "id": "b1c2d3e4-3333-4b33-9e33-333333333333",
-              "name": "estimatedTokens",
-              "value": "={{ (220 + Math.ceil($('Normalize Ticket Input').first().json.message.length / 4) + 30) + Math.ceil(JSON.stringify($json.output).length / 4) }}",
-              "type": "number"
-            },
-            {
-              "id": "b1c2d3e4-4444-4b44-9e44-444444444444",
-              "name": "estimatedCostUsd",
-              "value": "={{ (((220 + Math.ceil($('Normalize Ticket Input').first().json.message.length / 4) + 30) / 1000000) * 0.15) + ((Math.ceil(JSON.stringify($json.output).length / 4) / 1000000) * 0.60) }}",
-              "type": "number"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        -448,
-        1440
-      ],
-      "id": "c1d2e3f4-4444-4c44-8f44-444444444444",
-      "name": "Compute Classification Cost"
     },
     {
       "parameters": {
@@ -820,17 +713,6 @@
             "type": "main",
             "index": 0
           },
-          {
-            "node": "Compute Classification Cost",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Compute Classification Cost": {
-      "main": [
-        [
           {
             "node": "Classification Result",
             "type": "main",
