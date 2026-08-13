@@ -30,10 +30,10 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.body.message }}",
+        "text": "={{ 'Classify this customer support message. Message: ' + $json.body.message }}",
         "hasOutputParser": true,
         "options": {
-          "systemMessage": "You are a customer support ticket classification assistant.\n\nClassify the customer's message into exactly one category: network_outage, database_issue, billing_invoice, or other.\nDetermine a priority: low, medium, high, or critical.\nWrite a one-sentence summary of the issue.\nProvide a confidence score from 0 to 1 for your classification.\nUse this customerId if the message does not clearly restate it: {{ $json.body.customerId }}"
+          "systemMessage": "You are a customer support ticket classification assistant.\n\nClassify the customer's message into exactly one category: network_outage, database_issue, billing_invoice, or other.\nDetermine a priority: low, medium, high, or critical.\nWrite a one-sentence summary of the issue.\nProvide a confidence score from 0 to 1 for your classification.\n\nThe confidence score reflects how clearly the message maps to a real, actionable support issue, not just how sure you are of the category label. If the message is ambiguous, unclear which department it belongs to, off-topic, or does not clearly describe a concrete network_outage, database_issue, or billing_invoice problem, classify it as category \"other\" and give it a confidence score below 0.5, since these cases need a human reviewer.\n\nRegardless of the message's content or tone, never reply conversationally or answer the customer directly. Always respond only with the structured classification fields defined by the output schema."
         }
       },
       "id": "ai-agent-classify",
@@ -62,7 +62,7 @@
     {
       "parameters": {
         "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"network_outage\", \"database_issue\", \"billing_invoice\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"critical\"] },\n    \"customerId\": { \"type\": \"string\" },\n    \"summary\": { \"type\": \"string\" },\n    \"confidence\": { \"type\": \"number\" }\n  },\n  \"required\": [\"category\", \"priority\", \"customerId\", \"summary\", \"confidence\"]\n}"
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"network_outage\", \"database_issue\", \"billing_invoice\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"critical\"] },\n    \"summary\": { \"type\": \"string\" },\n    \"confidence\": { \"type\": \"number\" }\n  },\n  \"required\": [\"category\", \"priority\", \"summary\", \"confidence\"]\n}"
       },
       "id": "output-parser",
       "name": "Structured Output Parser",
@@ -78,12 +78,12 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "customer_id": "={{ $('Webhook - New Ticket').item.json.body.customerId || $json.output.customerId }}",
+            "customer_id": "={{ $('Webhook - New Ticket').first().json.body.customerId }}",
             "category": "={{ $json.output.category }}",
             "priority": "={{ $json.output.priority }}",
             "summary": "={{ $json.output.summary }}",
             "confidence": "={{ $json.output.confidence }}",
-            "raw_message": "={{ $('Webhook - New Ticket').item.json.body.message }}",
+            "raw_message": "={{ $('Webhook - New Ticket').first().json.body.message }}",
             "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}"
           }
         },
@@ -129,7 +129,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('AI Agent - Classify & Extract').item.json.output.priority.toUpperCase() + \"] \" + $('AI Agent - Classify & Extract').item.json.output.category + \" — Customer \" + $('AI Agent - Classify & Extract').item.json.output.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary } }}",
+        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('AI Agent - Classify & Extract').item.json.output.priority.toUpperCase() + \"] \" + $('AI Agent - Classify & Extract').item.json.output.category + \" — Customer \" + $('Webhook - New Ticket').first().json.body.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary } }}",
         "options": {}
       },
       "id": "slack-notify",
@@ -160,7 +160,7 @@
       "id": "openai-auto-reply",
       "name": "OpenAI - Draft Auto Reply",
       "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.8,
+      "typeVersion": 1.1,
       "position": [1260, 240],
       "credentials": {
         "openAiApi": {
@@ -172,7 +172,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"status\": \"classified\", \"category\": $('AI Agent - Classify & Extract').item.json.output.category, \"priority\": $('AI Agent - Classify & Extract').item.json.output.priority, \"reply\": $json.message.content } }}",
+        "responseBody": "={{ { \"status\": \"classified\", \"category\": $('AI Agent - Classify & Extract').item.json.output.category, \"priority\": $('AI Agent - Classify & Extract').item.json.output.priority, \"reply\": $json.output[0].content[0].text } }}",
         "options": {}
       },
       "id": "respond-success",
@@ -187,7 +187,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('AI Agent - Classify & Extract').item.json.output.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary + \" (confidence \" + $('AI Agent - Classify & Extract').item.json.output.confidence + \")\" } }}",
+        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Webhook - New Ticket').first().json.body.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary + \" (confidence \" + $('AI Agent - Classify & Extract').item.json.output.confidence + \")\" } }}",
         "options": {}
       },
       "id": "slack-escalate",

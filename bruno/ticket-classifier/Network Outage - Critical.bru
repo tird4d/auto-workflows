@@ -1,0 +1,22 @@
+meta {
+  name: Network Outage - Critical
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/webhook/support-ticket
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "customerId": "CUST-1001",
+    "message": "Our main office has had zero internet connectivity since 9am, this is urgent."
+  }
+}

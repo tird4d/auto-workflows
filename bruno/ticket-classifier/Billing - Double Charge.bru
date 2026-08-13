@@ -1,0 +1,22 @@
+meta {
+  name: Billing - Double Charge
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/webhook/support-ticket
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "customerId": "CUST-2002",
+    "message": "Customer was charged twice for their subscription and is requesting a refund for the extra charge."
+  }
+}

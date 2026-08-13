@@ -1,0 +1,22 @@
+meta {
+  name: Unclear Department - Should Escalate
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/webhook/support-ticket
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "customerId": "CUST-1001",
+    "message": "I'm not sure to which department should I talk but I need to talk with a human please send the ticket for more review."
+  }
+}

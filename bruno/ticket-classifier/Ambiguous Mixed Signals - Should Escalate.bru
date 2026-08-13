@@ -1,0 +1,22 @@
+meta {
+  name: Ambiguous Mixed Signals - Should Escalate
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/webhook/support-ticket
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "customerId": "CUST-4004",
+    "message": "Im not sure to which department should I talk but I need to talk with a hauman please send the ticket for more review."
+  }
+}

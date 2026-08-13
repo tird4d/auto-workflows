@@ -32,6 +32,8 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-UTC}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
