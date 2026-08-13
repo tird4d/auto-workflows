@@ -1,0 +1,23 @@
+meta {
+  name: Inbound Email - Account Lockout
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/webhook/support-ticket-email
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "from": "jane.doe@acme.com",
+    "subject": "Cannot access my account",
+    "text": "I have been locked out since yesterday and need urgent help."
+  }
+}

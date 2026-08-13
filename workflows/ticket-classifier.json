@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Setup checklist after import\n1. Create credential **OpenAI API** (or swap the Chat Model node for Azure OpenAI) — used by 'OpenAI Chat Model' and 'OpenAI - Draft Auto Reply'.\n2. Create credential **Postgres** — host `postgres`, db/user/password from your `.env` — used by 'Postgres - Insert Ticket'.\n3. Make sure `SLACK_WEBHOOK_URL` is set in `.env` (restart the n8n container after editing), or swap the HTTP Request nodes for the native Slack node.\n4. Run `sql/init.sql` once against Postgres to create the `tickets` table.\n5. Activate the workflow, then test:\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"CUST-1001\",\"message\":\"Our main office has had zero internet connectivity since 9am, this is urgent.\"}'\n```",
+        "content": "## Setup checklist after import\n1. Create credential **OpenAI API** (or swap the Chat Model node for Azure OpenAI) — used by 'OpenAI Chat Model' and 'OpenAI - Draft Auto Reply'.\n2. Create credential **Postgres** — host `postgres`, db/user/password from your `.env` — used by 'Postgres - Insert Ticket'.\n3. Make sure `SLACK_WEBHOOK_URL` is set in `.env` (restart the n8n container after editing), or swap the HTTP Request nodes for the native Slack node.\n4. Run `sql/init.sql` once against Postgres to create the `tickets` table.\n5. Activate the workflow, then test:\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"CUST-1001\",\"message\":\"Our main office has had zero internet connectivity since 9am, this is urgent.\"}'\n```\n6. Second intake channel (simulated inbound email, e.g. SendGrid/Mailgun-style webhook):\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket-email \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"from\":\"jane.doe@acme.com\",\"subject\":\"Cannot access my account\",\"text\":\"I have been locked out since yesterday and need urgent help.\"}'\n```",
         "height": 420,
         "width": 420
       },
@@ -29,8 +29,55 @@
     },
     {
       "parameters": {
+        "httpMethod": "POST",
+        "path": "support-ticket-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-email",
+      "name": "Webhook - Email Ticket",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-60, 560],
+      "webhookId": "support-ticket-email-demo"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "norm-customer-id",
+              "name": "customerId",
+              "type": "string",
+              "value": "={{ $json.body?.customerId || $json.body?.from }}"
+            },
+            {
+              "id": "norm-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.body?.message || ($json.body?.subject + ': ' + $json.body?.text) }}"
+            },
+            {
+              "id": "norm-source",
+              "name": "source",
+              "type": "string",
+              "value": "={{ $json.body?.customerId ? 'webhook' : 'email' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "normalize-input",
+      "name": "Normalize Ticket Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [140, 470]
+    },
+    {
+      "parameters": {
         "promptType": "define",
-        "text": "={{ 'Classify this customer support message. Message: ' + $json.body.message }}",
+        "text": "={{ 'Classify this customer support message. Message: ' + $json.message }}",
         "hasOutputParser": true,
         "options": {
           "systemMessage": "You are a customer support ticket classification assistant.\n\nClassify the customer's message into exactly one category: network_outage, database_issue, billing_invoice, or other.\nDetermine a priority: low, medium, high, or critical.\nWrite a one-sentence summary of the issue.\nProvide a confidence score from 0 to 1 for your classification.\n\nThe confidence score reflects how clearly the message maps to a real, actionable support issue, not just how sure you are of the category label. If the message is ambiguous, unclear which department it belongs to, off-topic, or does not clearly describe a concrete network_outage, database_issue, or billing_invoice problem, classify it as category \"other\" and give it a confidence score below 0.5, since these cases need a human reviewer.\n\nRegardless of the message's content or tone, never reply conversationally or answer the customer directly. Always respond only with the structured classification fields defined by the output schema."
@@ -78,12 +125,12 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "customer_id": "={{ $('Webhook - New Ticket').first().json.body.customerId }}",
+            "customer_id": "={{ $('Normalize Ticket Input').first().json.customerId }}",
             "category": "={{ $json.output.category }}",
             "priority": "={{ $json.output.priority }}",
             "summary": "={{ $json.output.summary }}",
             "confidence": "={{ $json.output.confidence }}",
-            "raw_message": "={{ $('Webhook - New Ticket').first().json.body.message }}",
+            "raw_message": "={{ $('Normalize Ticket Input').first().json.message }}",
             "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}"
           }
         },
@@ -129,7 +176,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('AI Agent - Classify & Extract').item.json.output.priority.toUpperCase() + \"] \" + $('AI Agent - Classify & Extract').item.json.output.category + \" — Customer \" + $('Webhook - New Ticket').first().json.body.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary } }}",
+        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('AI Agent - Classify & Extract').item.json.output.priority.toUpperCase() + \"] \" + $('AI Agent - Classify & Extract').item.json.output.category + \" — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('AI Agent - Classify & Extract').item.json.output.summary } }}",
         "options": {}
       },
       "id": "slack-notify",
@@ -187,7 +234,7 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Webhook - New Ticket').first().json.body.customerId + \": \" + $('AI Agent - Classify & Extract').item.json.output.summary + \" (confidence \" + $('AI Agent - Classify & Extract').item.json.output.confidence + \")\" } }}",
+        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('AI Agent - Classify & Extract').item.json.output.summary + \" (confidence \" + $('AI Agent - Classify & Extract').item.json.output.confidence + \")\" } }}",
         "options": {}
       },
       "id": "slack-escalate",
@@ -211,6 +258,12 @@
   ],
   "connections": {
     "Webhook - New Ticket": {
+      "main": [[{ "node": "Normalize Ticket Input", "type": "main", "index": 0 }]]
+    },
+    "Webhook - Email Ticket": {
+      "main": [[{ "node": "Normalize Ticket Input", "type": "main", "index": 0 }]]
+    },
+    "Normalize Ticket Input": {
       "main": [[{ "node": "AI Agent - Classify & Extract", "type": "main", "index": 0 }]]
     },
     "OpenAI Chat Model": {
