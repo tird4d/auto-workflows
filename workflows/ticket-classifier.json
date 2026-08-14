@@ -3,33 +3,18 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Setup checklist after import\n1. Create credential **OpenAI API** (or swap the Chat Model node for Azure OpenAI) — used by 'OpenAI Chat Model' and 'OpenAI - Draft Auto Reply'.\n2. Create credential **Postgres** — host `postgres`, db/user/password from your `.env` — used by 'Postgres - Insert Ticket'.\n3. Make sure `SLACK_WEBHOOK_URL` is set in `.env` (restart the n8n container after editing), or swap the HTTP Request nodes for the native Slack node.\n4. Run `sql/init.sql` once against Postgres to create the `tickets` table.\n5. Activate the workflow, then test:\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"CUST-1001\",\"message\":\"Our main office has had zero internet connectivity since 9am, this is urgent.\"}'\n```",
-        "height": 420,
-        "width": 420
-      },
-      "id": "cb62485c-9917-4dfb-82b4-51afb30f8984",
-      "name": "Sticky Note - Setup",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -816,
-        544
-      ]
-    },
-    {
-      "parameters": {
         "httpMethod": "POST",
         "path": "support-ticket",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "02831c8b-7fe9-4e27-a5f2-84dc682d2e7d",
+      "id": "ac29b690-7724-4859-85da-3ad58c5cb64d",
       "name": "Webhook - New Ticket",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -2144,
-        1888
+        -6864,
+        4912
       ],
       "webhookId": "support-ticket-demo"
     },
@@ -42,13 +27,13 @@
           "systemMessage": "=You are a customer support ticket classification assistant.\n\nClassify the customer's message into exactly one category: network_outage, database_issue, billing_invoice, or other.\nDetermine a priority: low, medium, high, or critical.\nWrite a one-sentence summary of the issue.\nProvide a confidence score from 0 to 1 for your classification.\n\nThe confidence score reflects how clearly the message maps to a real, actionable support issue, not just how sure you are of the category label. If the message is ambiguous, unclear which department it belongs to, off-topic, or does not clearly describe a concrete network_outage, database_issue, or billing_invoice problem, classify it as category \"other\" and give it a confidence score below 0.5, since these cases need a human reviewer.\n\nRegardless of the message's content or tone, never reply conversationally or answer the customer directly. Always respond only with the structured classification fields defined by the output schema."
         }
       },
-      "id": "c10c598c-235a-4dff-8451-aa92c3d7dd51",
+      "id": "5ef27584-27a6-4415-9df3-26a916bb38dc",
       "name": "AI Agent - Classify & Extract",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
       "position": [
-        -656,
-        2080
+        -5376,
+        5104
       ]
     },
     {
@@ -56,13 +41,13 @@
         "model": "gpt-4o-mini",
         "options": {}
       },
-      "id": "154cb113-84b6-4905-805f-a0a79e7ac262",
+      "id": "1b8cbff9-e6c4-4a59-8c40-e4df801a502b",
       "name": "OpenAI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1,
       "position": [
-        -656,
-        2304
+        -5552,
+        5328
       ],
       "credentials": {
         "openAiApi": {
@@ -76,13 +61,13 @@
         "schemaType": "manual",
         "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": { \"type\": \"string\", \"enum\": [\"network_outage\", \"database_issue\", \"billing_invoice\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"critical\"] },\n    \"summary\": { \"type\": \"string\" },\n    \"confidence\": { \"type\": \"number\" }\n  },\n  \"required\": [\"category\", \"priority\", \"summary\", \"confidence\"]\n}"
       },
-      "id": "a771df5f-9045-4e36-bc7c-807850815021",
+      "id": "140c5bbf-4c14-4301-ae10-5b5c2c842cdf",
       "name": "Structured Output Parser",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        -512,
-        2304
+        -5232,
+        5328
       ]
     },
     {
@@ -106,7 +91,10 @@
             "summary": "={{ $json.output.summary }}",
             "confidence": "={{ $json.output.confidence }}",
             "raw_message": "={{ $('Normalize Ticket Input').first().json.message }}",
-            "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}"
+            "status": "={{ $json.output.confidence >= 0.6 ? 'classified' : 'needs_review' }}",
+            "cost_source": "={{ $json.costSource }}",
+            "estimated_tokens": "={{ $json.estimatedTokens }}",
+            "estimated_cost_usd": "={{ $json.estimatedCostUsd }}"
           },
           "matchingColumns": [
             "id"
@@ -186,6 +174,33 @@
               "canBeUsedToMatch": true
             },
             {
+              "id": "cost_source",
+              "displayName": "cost_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estimated_tokens",
+              "displayName": "estimated_tokens",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estimated_cost_usd",
+              "displayName": "estimated_cost_usd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
               "id": "created_at",
               "displayName": "created_at",
               "required": false,
@@ -201,13 +216,13 @@
         },
         "options": {}
       },
-      "id": "300c2bf2-0165-4602-9605-77b4cbf5b07d",
+      "id": "5f799970-6b28-4155-bade-e5cb003c06da",
       "name": "Postgres - Insert Ticket",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        144,
-        1664
+        -4576,
+        4688
       ],
       "credentials": {
         "postgres": {
@@ -240,13 +255,13 @@
         },
         "options": {}
       },
-      "id": "43643822-e993-457a-a9eb-33471df41705",
+      "id": "11c24001-5238-4232-80e8-b1f359aaae45",
       "name": "IF - Confidence >= 0.6",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        464,
-        1664
+        -4256,
+        4688
       ]
     },
     {
@@ -255,16 +270,16 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('Classification Result').first().json.output.priority.toUpperCase() + \"] \" + $('Classification Result').first().json.output.category + \" — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary } }}",
+        "jsonBody": "={{ { \"text\": \":rotating_light: New ticket [\" + $('Classification Result').first().json.output.priority.toUpperCase() + \"] \" + $('Classification Result').first().json.output.category + \" — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" | \" + ($('Classification Result').first().json.costSource === 'cache' ? \"⚡ served from semantic cache – $0 LLM cost\" : \"🧠 fresh LLM classification – ~$\" + $('Classification Result').first().json.estimatedCostUsd.toFixed(5) + \" (\" + $('Classification Result').first().json.estimatedTokens + \" tokens)\") } }}",
         "options": {}
       },
-      "id": "69f7def0-3b84-4fbc-bbea-a003d8d5b87b",
+      "id": "57816359-1dfa-4427-83ca-525bbcb4da18",
       "name": "Notify Slack - Standard",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        688,
-        1568
+        -4032,
+        4592
       ]
     },
     {
@@ -273,13 +288,13 @@
         "responseBody": "={{ { \"status\": \"classified\", \"category\": $('Classification Result').first().json.output.category, \"priority\": $('Classification Result').first().json.output.priority, \"reply\": $json.output[0].content[0].text } }}",
         "options": {}
       },
-      "id": "7a0f91ea-ae73-4517-9f86-40335a7f91c9",
+      "id": "33a80e52-a924-42ec-8659-cfc14da1a58f",
       "name": "Respond - Classified",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1264,
-        1568
+        -3456,
+        4592
       ]
     },
     {
@@ -288,16 +303,16 @@
         "url": "={{ $env.SLACK_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" (confidence \" + $('Classification Result').first().json.output.confidence + \")\" } }}",
+        "jsonBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" (confidence \" + $('Classification Result').first().json.output.confidence + \")\" + \" | \" + ($('Classification Result').first().json.costSource === 'cache' ? \"⚡ served from semantic cache – $0 LLM cost\" : \"🧠 fresh LLM classification – ~$\" + $('Classification Result').first().json.estimatedCostUsd.toFixed(5) + \" (\" + $('Classification Result').first().json.estimatedTokens + \" tokens)\") } }}",
         "options": {}
       },
-      "id": "c6cffae4-a1f7-44eb-bce0-e93195926457",
+      "id": "41c650a3-88a3-42fc-bcb9-1610840cae51",
       "name": "Notify Slack - Escalation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        688,
-        1760
+        -4032,
+        4784
       ]
     },
     {
@@ -306,13 +321,13 @@
         "responseBody": "={{ { \"text\": \":warning: Low-confidence ticket needs human review — Customer \" + $('Normalize Ticket Input').first().json.customerId + \" (via \" + $('Normalize Ticket Input').first().json.source + \"): \" + $('Classification Result').first().json.output.summary + \" (confidence \" + $('Classification Result').first().json.output.confidence + \")\" } }}",
         "options": {}
       },
-      "id": "c4b71a8e-e13b-46c6-9506-a27fce92582e",
+      "id": "a2199349-994c-4de2-ac91-b9184f68c0ef",
       "name": "Respond - Needs Review",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        976,
-        1760
+        -3744,
+        4784
       ]
     },
     {
@@ -340,10 +355,10 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        912,
-        1568
+        -3808,
+        4592
       ],
-      "id": "c1eb2f9b-6169-4b47-a131-1898da06d87c",
+      "id": "cdecff52-01b1-4d42-ac7f-395c9d36009b",
       "name": "Message a model",
       "credentials": {
         "openAiApi": {
@@ -362,10 +377,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -2144,
-        2176
+        -6864,
+        5200
       ],
-      "id": "50dac4ab-f16a-4782-9dd7-4846226cc1e9",
+      "id": "8558fa74-1a05-405c-9ac6-a55bdf365f9d",
       "name": "Webhook - Email Ticket",
       "webhookId": "d6b1e8db-b21a-46df-bf1a-d8bc3466c67a"
     },
@@ -398,10 +413,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -1856,
-        2064
+        -6576,
+        5088
       ],
-      "id": "0f19c8d3-4c9d-40c1-8315-31d3193e9989",
+      "id": "f39c0bff-fa82-4f77-8419-883e2b24daf2",
       "name": "Normalize Ticket Input"
     },
     {
@@ -411,10 +426,10 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
       "position": [
-        -208,
-        2272
+        -4928,
+        5296
       ],
-      "id": "1297b60e-4b49-4b7a-9a4f-f407d70d772b",
+      "id": "e409e150-1bd5-42e9-87bd-e13be6de20bd",
       "name": "Embeddings OpenAI",
       "credentials": {
         "openAiApi": {
@@ -436,10 +451,10 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStoreRedis",
       "typeVersion": 1.3,
       "position": [
-        -208,
-        2080
+        -4928,
+        5104
       ],
-      "id": "2b2eb620-d3f0-4c25-a4c6-37b361730ee5",
+      "id": "f0880c73-e8f7-4e44-b10a-e080f7ee090c",
       "name": "Redis Vector Store",
       "credentials": {
         "redis": {
@@ -482,10 +497,10 @@
       "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
       "typeVersion": 1.1,
       "position": [
-        -16,
-        2272
+        -4736,
+        5296
       ],
-      "id": "5f4af8ba-d036-46b9-ba44-aca6e5bb7824",
+      "id": "969af66f-9446-4bc6-911c-318644eb1817",
       "name": "Default Data Loader"
     },
     {
@@ -497,10 +512,10 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -1648,
-        2064
+        -6368,
+        5088
       ],
-      "id": "b9c6fcf0-9aa1-4af2-a875-d4deeab7c1c3",
+      "id": "4d616e02-1d54-435a-bce5-14c9242219bd",
       "name": "Redis - Check Cache Populated",
       "credentials": {
         "redis": {
@@ -536,10 +551,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -1472,
-        2064
+        -6192,
+        5088
       ],
-      "id": "2053a66f-8e19-41f7-ac20-cf5609cfb985",
+      "id": "87443b79-ba05-4352-b6ad-bb255044a4d8",
       "name": "IF - Cache Populated"
     },
     {
@@ -551,17 +566,17 @@
           "mode": "list",
           "cachedResultName": "ticket-cache"
         },
-        "prompt": "={{ $json.message }}",
+        "prompt": "={{ $('Normalize Ticket Input').first().json.message }}",
         "topK": 1,
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.vectorStoreRedis",
       "typeVersion": 1.3,
       "position": [
-        -1232,
-        1680
+        -5952,
+        4704
       ],
-      "id": "60d65dca-0a8b-4105-8b3b-0f582cc4faff",
+      "id": "7bdea2b7-e837-4e70-8d41-92a650297fc3",
       "name": "Redis Vector Store1",
       "notesInFlow": false,
       "credentials": {
@@ -578,10 +593,10 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
       "typeVersion": 1.2,
       "position": [
-        -1232,
-        1888
+        -5952,
+        4912
       ],
-      "id": "b691974c-7fa5-434c-aefd-5d93e1c21255",
+      "id": "283402d1-e37f-4f74-92a2-1c4f5df58840",
       "name": "Embeddings OpenAI1",
       "credentials": {
         "openAiApi": {
@@ -599,6 +614,24 @@
               "name": "output",
               "value": "={{ $json.output }}",
               "type": "object"
+            },
+            {
+              "id": "a1b2c3d4-1111-4a11-8e11-111111111111",
+              "name": "costSource",
+              "value": "={{ $json.costSource }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-2222-4a22-8e22-222222222222",
+              "name": "estimatedTokens",
+              "value": "={{ $json.estimatedTokens }}",
+              "type": "number"
+            },
+            {
+              "id": "a1b2c3d4-3333-4a33-8e33-333333333333",
+              "name": "estimatedCostUsd",
+              "value": "={{ $json.estimatedCostUsd }}",
+              "type": "number"
             }
           ]
         },
@@ -607,10 +640,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -224,
-        1664
+        -4944,
+        4688
       ],
-      "id": "ce4f98fc-0d96-465e-bbce-a053e3306c12",
+      "id": "0d432951-62b1-4cd8-8b35-2c277e7d7931",
       "name": "Classification Result"
     },
     {
@@ -622,6 +655,24 @@
               "name": "output",
               "value": "={{ { category: $json.document.metadata.category, priority: $json.document.metadata.priority, summary: $json.document.metadata.summary, confidence: $json.document.metadata.confidence } }}",
               "type": "object"
+            },
+            {
+              "id": "5e12d600-1111-4b74-aa34-111111111111",
+              "name": "costSource",
+              "value": "cache",
+              "type": "string"
+            },
+            {
+              "id": "5e12d600-2222-4b74-aa34-222222222222",
+              "name": "estimatedTokens",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "5e12d600-3333-4b74-aa34-333333333333",
+              "name": "estimatedCostUsd",
+              "value": 0,
+              "type": "number"
             }
           ]
         },
@@ -630,11 +681,52 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -560,
-        1664
+        -5280,
+        4688
       ],
-      "id": "c5940835-34f3-473a-924e-38dc5dfe51c5",
+      "id": "20bbce1a-1cd1-45e0-835f-1ea162b2b786",
       "name": "Use Cached Classification"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1c2d3e4-1111-4b11-9e11-111111111111",
+              "name": "output",
+              "value": "={{ $json.output }}",
+              "type": "object"
+            },
+            {
+              "id": "b1c2d3e4-2222-4b22-9e22-222222222222",
+              "name": "costSource",
+              "value": "llm",
+              "type": "string"
+            },
+            {
+              "id": "b1c2d3e4-3333-4b33-9e33-333333333333",
+              "name": "estimatedTokens",
+              "value": "={{ (220 + Math.ceil($('Normalize Ticket Input').first().json.message.length / 4) + 30) + Math.ceil(JSON.stringify($json.output).length / 4) }}",
+              "type": "number"
+            },
+            {
+              "id": "b1c2d3e4-4444-4b44-9e44-444444444444",
+              "name": "estimatedCostUsd",
+              "value": "={{ (((220 + Math.ceil($('Normalize Ticket Input').first().json.message.length / 4) + 30) / 1000000) * 0.15) + ((Math.ceil(JSON.stringify($json.output).length / 4) / 1000000) * 0.60) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -5072,
+        4928
+      ],
+      "id": "db20ae6d-700f-44bd-bc65-a4151fe7b7aa",
+      "name": "Compute Classification Cost"
     },
     {
       "parameters": {
@@ -663,11 +755,46 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -880,
-        1680
+        -5600,
+        4704
       ],
-      "id": "1015703f-5e68-49a7-ba1a-48833862c32a",
+      "id": "21f11a22-a8c6-42f2-804c-37c0eb1446a2",
       "name": "IF - Cache Hit"
+    },
+    {
+      "parameters": {
+        "content": "## Setup checklist after import\n1. Create credential **OpenAI API** (or swap the Chat Model node for Azure OpenAI) — used by 'OpenAI Chat Model' and 'OpenAI - Draft Auto Reply'.\n2. Create credential **Postgres** — host `postgres`, db/user/password from your `.env` — used by 'Postgres - Insert Ticket'.\n3. Make sure `SLACK_WEBHOOK_URL` is set in `.env` (restart the n8n container after editing), or swap the HTTP Request nodes for the native Slack node.\n4. Run `sql/init.sql` once against Postgres to create the `tickets` table.\n5. Activate the workflow, then test:\n```\ncurl -X POST http://localhost:5678/webhook/support-ticket \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"CUST-1001\",\"message\":\"Our main office has had zero internet connectivity since 9am, this is urgent.\"}'\n```",
+        "height": 420,
+        "width": 420
+      },
+      "id": "a26cb608-f53d-4347-921a-ded5946edcb0",
+      "name": "Sticky Note - Setup1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5536,
+        3568
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-5.4-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAzureOpenAi",
+      "typeVersion": 1,
+      "position": [
+        -5376,
+        5328
+      ],
+      "id": "a5dce541-a1a6-43a7-a3d1-e00d783825ab",
+      "name": "Azure OpenAI Chat Model",
+      "credentials": {
+        "azureOpenAiApi": {
+          "id": "tf2zgE0aBKeMlDBD",
+          "name": "Azure Open AI account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -685,13 +812,7 @@
     },
     "OpenAI Chat Model": {
       "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent - Classify & Extract",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Structured Output Parser": {
@@ -713,6 +834,17 @@
             "type": "main",
             "index": 0
           },
+          {
+            "node": "Compute Classification Cost",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Classification Cost": {
+      "main": [
+        [
           {
             "node": "Classification Result",
             "type": "main",
@@ -917,6 +1049,17 @@
           }
         ]
       ]
+    },
+    "Azure OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Classify & Extract",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -925,7 +1068,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "841e9bda-ce55-4c5b-bd6a-906efb492049",
+  "versionId": "46152867-3b6a-4021-b2eb-16894968e11f",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f456fba8f0429dbd1d0b2a2045a155368ce588591a666d171f5ce2656705a91b"
