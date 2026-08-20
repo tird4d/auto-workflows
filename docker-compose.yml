@@ -21,8 +21,8 @@ services:
   redis:
     image: redis/redis-stack-server:latest
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
 
@@ -50,10 +50,6 @@ services:
 
 volumes:
   postgres_data:
-    name: 01-support-ticket-classifier_postgres_data
-    external: true
   n8n_data:
-    name: 01-support-ticket-classifier_n8n_data
-    external: true
   redis_data:
 
